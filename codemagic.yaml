@@ -5,6 +5,7 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
+      java: 21
     scripts:
       - flutter create . --org com.ourchat --project-name ourchat --platforms android
       - flutter pub add firebase_core firebase_auth cloud_firestore google_sign_in
