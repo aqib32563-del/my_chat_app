@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -49,7 +50,11 @@ class _LoginScreenState extends State<LoginScreen> {
       error = '';
     });
     try {
-      await FirebaseAuth.instance.signInWithProvider(GoogleAuthProvider());
+      final gUser = await GoogleSignIn().signIn();
+      if (gUser == null) throw Exception("Login cancel ho gaya");
+      final gAuth = await gUser.authentication;
+      final cred = GoogleAuthProvider.credential(accessToken: gAuth.accessToken, idToken: gAuth.idToken);
+      await FirebaseAuth.instance.signInWithCredential(cred);
     } catch (e) {
       setState(() => error = e.toString());
     }
