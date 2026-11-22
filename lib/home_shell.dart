@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'new_chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -74,7 +75,7 @@ class _HomeShellState extends State<HomeShell> {
       body: body(),
       floatingActionButton: index == 0
           ? FloatingActionButton(
-              onPressed: () {}, child: const Icon(Icons.chat))
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewChatScreen())), child: const Icon(Icons.chat))
           : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
