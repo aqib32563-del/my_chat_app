@@ -1,0 +1,13 @@
+workflows:
+  android:
+    name: OurChat Android
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+    scripts:
+      - flutter create . --org com.ourchat --project-name ourchat --platforms android
+      - flutter pub add firebase_core firebase_auth cloud_firestore google_sign_in
+      - flutter build apk --release
+    artifacts:
+      - build/**/outputs/**/*.apk
