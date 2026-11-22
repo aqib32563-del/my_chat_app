@@ -60,7 +60,7 @@ class ProfileGate extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()));
         }
         if (!snap.data!.exists) return const UsernameScreen();
-        return HomeScreen(data: snap.data!.data()!);
+        return HomeShell(data: snap.data!.data()!);
       },
     );
   }
