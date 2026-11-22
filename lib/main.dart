@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'username_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,13 +25,42 @@ class OurChat extends StatelessWidget {
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
+                body: Center(child: CircularProgressIndicator()));
           }
-          if (snap.hasData) return const HomeScreen();
+          if (snap.hasData) return ProfileGate(uid: snap.data!.uid);
           return const LoginScreen();
         },
       ),
+    );
+  }
+}
+
+class ProfileGate extends StatelessWidget {
+  final String uid;
+  const ProfileGate({super.key, required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream:
+          FirebaseFirestore.instance.collection('users_public').doc(uid).snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return Scaffold(
+              body: Center(
+                  child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text('Error: ${snap.error}',
+                style: const TextStyle(color: Colors.red)),
+          )));
+        }
+        if (!snap.hasData) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+        if (!snap.data!.exists) return const UsernameScreen();
+        return HomeScreen(data: snap.data!.data()!);
+      },
     );
   }
 }
@@ -51,9 +82,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final gUser = await GoogleSignIn().signIn();
-      if (gUser == null) throw Exception("Login cancel ho gaya");
+      if (gUser == null) throw Exception('Login cancel ho gaya');
       final gAuth = await gUser.authentication;
-      final cred = GoogleAuthProvider.credential(accessToken: gAuth.accessToken, idToken: gAuth.idToken);
+      final cred = GoogleAuthProvider.credential(
+          accessToken: gAuth.accessToken, idToken: gAuth.idToken);
       await FirebaseAuth.instance.signInWithCredential(cred);
     } catch (e) {
       setState(() => error = e.toString());
@@ -92,24 +124,34 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+  final Map<String, dynamic> data;
+  const HomeScreen({super.key, required this.data});
+
+  Future<void> logout() async {
+    await GoogleSignIn().signOut();
+    await FirebaseAuth.instance.signOut();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     return Scaffold(
       appBar: AppBar(
         title: const Text('OurChat'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
-          ),
+          IconButton(icon: const Icon(Icons.logout), onPressed: logout),
         ],
       ),
       body: Center(
-        child: Text('Khush aamdeed, ${user?.displayName ?? ''}!',
-            style: const TextStyle(fontSize: 22)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Khush aamdeed, ${data['name']}!',
+                style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 8),
+            Text('@${data['username']}',
+                style: const TextStyle(fontSize: 18, color: Colors.green)),
+          ],
+        ),
       ),
     );
   }
