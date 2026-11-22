@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'username_screen.dart';
+import 'home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +20,7 @@ class OurChat extends StatelessWidget {
     return MaterialApp(
       title: 'OurChat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(colorSchemeSeed: Colors.green, useMaterial3: true),
+      theme: ThemeData(colorSchemeSeed: const Color(0xFF1B8A3A), useMaterial3: true, appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF1B8A3A), foregroundColor: Colors.white)),
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snap) {
