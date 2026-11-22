@@ -7,8 +7,16 @@ workflows:
       flutter: stable
       java: 21
     scripts:
-      - flutter create . --org com.ourchat --project-name ourchat --platforms android
-      - flutter pub add firebase_core firebase_auth cloud_firestore google_sign_in
-      - flutter build apk --release
+      - name: Create android project
+        script: flutter create . --org com.ourchat --project-name ourchat --platforms android
+      - name: Add packages
+        script: flutter pub add firebase_core firebase_auth cloud_firestore google_sign_in
+      - name: Setup Firebase
+        script: |
+          cp google-services.json android/app/google-services.json
+          sed -i '/id("org.jetbrains.kotlin.android")/a\    id("com.google.gms.google-services") version "4.4.2" apply false' android/settings.gradle.kts
+          sed -i '/id("com.android.application")/a\    id("com.google.gms.google-services")' android/app/build.gradle.kts
+      - name: Build APK
+        script: flutter build apk --release
     artifacts:
       - build/**/outputs/**/*.apk
