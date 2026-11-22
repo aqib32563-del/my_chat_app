@@ -11,9 +11,10 @@ workflows:
         script: flutter create . --org com.ourchat --project-name ourchat --platforms android
       - name: Add packages
         script: flutter pub add firebase_core firebase_auth cloud_firestore google_sign_in
-      - name: Setup Firebase
+      - name: Setup Firebase and signing
         script: |
           cp google-services.json android/app/google-services.json
+          cp ourchat-key.jks android/app/ourchat-key.jks
           python3 - <<'PY'
           import os
           kts = os.path.exists('android/settings.gradle.kts')
@@ -21,9 +22,27 @@ workflows:
           if kts:
               l1 = '    id("com.google.gms.google-services") version "4.4.2" apply false'
               l2 = '    id("com.google.gms.google-services")'
+              sign = '\n'.join([
+                  '    signingConfigs {',
+                  '        getByName("debug") {',
+                  '            storeFile = file("ourchat-key.jks")',
+                  '            storePassword = "Aqib3655"',
+                  '            keyAlias = "ourchat"',
+                  '            keyPassword = "Aqib3655"',
+                  '        }',
+                  '    }'])
           else:
               l1 = '    id "com.google.gms.google-services" version "4.4.2" apply false'
               l2 = '    id "com.google.gms.google-services"'
+              sign = '\n'.join([
+                  '    signingConfigs {',
+                  '        debug {',
+                  '            storeFile file("ourchat-key.jks")',
+                  '            storePassword "Aqib3655"',
+                  '            keyAlias "ourchat"',
+                  '            keyPassword "Aqib3655"',
+                  '        }',
+                  '    }'])
           def add(path, key, line):
               out, done = [], False
               for l in open(path).read().split('\n'):
@@ -34,6 +53,7 @@ workflows:
               open(path, 'w').write('\n'.join(out))
           add('android/settings' + ext, 'org.jetbrains.kotlin.android', l1)
           add('android/app/build' + ext, 'com.android.application', l2)
+          add('android/app/build' + ext, 'android {', sign)
           PY
       - name: Build APK
         script: flutter build apk --release
