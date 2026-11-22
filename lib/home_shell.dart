@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'new_chat_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'new_chat_screen.dart';
+import 'chats_tab.dart';
+import 'select_contact_screen.dart';
 
 class HomeShell extends StatefulWidget {
   final Map<String, dynamic> data;
@@ -13,6 +15,16 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int index = 0;
   final titles = ['OurChat', 'Groups', 'Calls', 'Status', 'Settings'];
+
+  void openSearch() {
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const NewChatScreen()));
+  }
+
+  void openSelectContact() {
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => const SelectContactScreen()));
+  }
 
   Future<void> logout() async {
     await GoogleSignIn().signOut();
@@ -33,7 +45,7 @@ class _HomeShellState extends State<HomeShell> {
   Widget body() {
     switch (index) {
       case 0:
-        return empty(Icons.chat_bubble_outline, 'Abhi koi chat nahi');
+        return const ChatsTab();
       case 1:
         return empty(Icons.groups_outlined, 'Abhi koi group nahi');
       case 2:
@@ -69,13 +81,13 @@ class _HomeShellState extends State<HomeShell> {
         title: Text(titles[index],
             style: const TextStyle(fontWeight: FontWeight.bold)),
         actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.search), onPressed: openSearch),
         ],
       ),
       body: body(),
       floatingActionButton: index == 0
           ? FloatingActionButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NewChatScreen())), child: const Icon(Icons.chat))
+              onPressed: openSelectContact, child: const Icon(Icons.chat))
           : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,

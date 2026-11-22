@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'chat_screen.dart';
 
 class NewChatScreen extends StatefulWidget {
   const NewChatScreen({super.key});
@@ -41,6 +42,32 @@ class _NewChatScreenState extends State<NewChatScreen> {
     if (mounted) setState(() => loading = false);
   }
 
+  Future<void> addAndOpen(Map<String, dynamic> u) async {
+    final me = FirebaseAuth.instance.currentUser!.uid;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users_private')
+          .doc(me)
+          .set({
+        'contacts': FieldValue.arrayUnion(['${u['uid']}'])
+      }, SetOptions(merge: true));
+    } catch (e) {
+      setState(() => error = e.toString());
+      return;
+    }
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          otherUid: '${u['uid']}',
+          otherName: '${u['name']}',
+          otherUsername: '${u['username']}',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -71,18 +98,19 @@ class _NewChatScreenState extends State<NewChatScreen> {
                     child: Text('Username likh kar dost dhoondein',
                         style: TextStyle(color: Colors.grey)))
                 : ListView(
-                    children: results
-                        .map((u) => ListTile(
-                              leading: CircleAvatar(
-                                  child: Text(
-                                      '${u['name']}'.isNotEmpty ? '${u['name']}'[0].toUpperCase() : '?')),
-                              title: Text('${u['name']}'),
-                              subtitle: Text('@${u['username']}'),
-                              onTap: () => ScaffoldMessenger.of(context)
-                                  .showSnackBar(const SnackBar(
-                                      content: Text('Chat agle step mein banegi'))),
-                            ))
-                        .toList(),
+                    children: results.map((u) {
+                      final name = '${u['name']}';
+                      return ListTile(
+                        leading: CircleAvatar(
+                            child: Text(name.isNotEmpty
+                                ? name[0].toUpperCase()
+                                : '?')),
+                        title: Text(name),
+                        subtitle: Text('@${u['username']}'),
+                        trailing: const Icon(Icons.person_add_alt),
+                        onTap: () => addAndOpen(u),
+                      );
+                    }).toList(),
                   ),
           ),
         ],
