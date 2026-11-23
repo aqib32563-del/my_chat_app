@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,6 +23,8 @@ class _ChatScreenState extends State<ChatScreen> {
   late final String chatId;
   late final DocumentReference<Map<String, dynamic>> chatRef;
   Map<String, dynamic>? myData;
+  bool marking = false;
+  Timer? tick;
 
   @override
   void initState() {
@@ -29,17 +32,35 @@ class _ChatScreenState extends State<ChatScreen> {
     final ids = [me.uid, widget.otherUid]..sort();
     chatId = ids.join('_');
     chatRef = FirebaseFirestore.instance.collection('chats').doc(chatId);
+    tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    tick?.cancel();
+    ctrl.dispose();
+    super.dispose();
   }
 
   Future<void> send() async {
     final text = ctrl.text.trim();
     if (text.isEmpty) return;
     ctrl.clear();
+    final isSelf = widget.otherUid == me.uid;
     myData ??= (await FirebaseFirestore.instance
             .collection('users_public')
             .doc(me.uid)
             .get())
         .data();
+    await chatRef.collection('messages').add({
+      'text': text,
+      'senderId': me.uid,
+      'createdAt': FieldValue.serverTimestamp(),
+      'delivered': isSelf,
+      'read': isSelf,
+    });
     await chatRef.set({
       'members': [me.uid, widget.otherUid],
       'names': {me.uid: myData?['name'], widget.otherUid: widget.otherName},
@@ -48,13 +69,84 @@ class _ChatScreenState extends State<ChatScreen> {
         widget.otherUid: widget.otherUsername
       },
       'lastMessage': text,
+      'lastSenderId': me.uid,
       'lastTime': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-    await chatRef.collection('messages').add({
-      'text': text,
-      'senderId': me.uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
+  }
+
+  Future<void> markRead(
+      List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) async {
+    if (marking) return;
+    final unread = docs.where((d) {
+      final m = d.data();
+      return m['senderId'] != me.uid && m['read'] != true;
+    }).toList();
+    if (unread.isEmpty) return;
+    marking = true;
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      for (final d in unread) {
+        batch.update(d.reference, {'read': true, 'delivered': true});
+      }
+      await batch.commit();
+    } catch (_) {}
+    marking = false;
+  }
+
+  String fmtTime(Timestamp? t) {
+    if (t == null) return '';
+    final d = t.toDate();
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final m = d.minute.toString().padLeft(2, '0');
+    return '$h:$m ${d.hour >= 12 ? 'PM' : 'AM'}';
+  }
+
+  String lastSeenText(Timestamp t) {
+    final d = t.toDate();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) return 'last seen today at ${fmtTime(t)}';
+    if (diff == 1) return 'last seen yesterday at ${fmtTime(t)}';
+    return 'last seen ${d.day}/${d.month}/${d.year}';
+  }
+
+  Widget statusLine() {
+    if (widget.otherUid == me.uid) {
+      return const Text('Message yourself', style: TextStyle(fontSize: 12));
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users_public')
+          .doc(widget.otherUid)
+          .snapshots(),
+      builder: (context, s) {
+        final d = s.data?.data();
+        final ls = d?['lastSeen'] as Timestamp?;
+        final fresh =
+            ls != null && DateTime.now().difference(ls.toDate()).inSeconds < 90;
+        final online = d?['online'] == true && fresh;
+        final text = online
+            ? 'online'
+            : (ls != null ? lastSeenText(ls) : '@${widget.otherUsername}');
+        return Text(text, style: const TextStyle(fontSize: 12));
+      },
+    );
+  }
+
+  Widget tickIcon(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+    final m = d.data();
+    if (d.metadata.hasPendingWrites) {
+      return const Icon(Icons.access_time, size: 14, color: Colors.black45);
+    }
+    if (m['read'] == true) {
+      return const Icon(Icons.done_all, size: 17, color: Colors.blue);
+    }
+    if (m['delivered'] == true) {
+      return const Icon(Icons.done_all, size: 17, color: Colors.black54);
+    }
+    return const Icon(Icons.done, size: 17, color: Colors.black54);
   }
 
   @override
@@ -67,8 +159,7 @@ class _ChatScreenState extends State<ChatScreen> {
             Text(widget.otherName,
                 style: const TextStyle(
                     fontSize: 18, fontWeight: FontWeight.bold)),
-            Text('@${widget.otherUsername}',
-                style: const TextStyle(fontSize: 12)),
+            statusLine(),
           ],
         ),
       ),
@@ -79,7 +170,7 @@ class _ChatScreenState extends State<ChatScreen> {
               stream: chatRef
                   .collection('messages')
                   .orderBy('createdAt', descending: true)
-                  .snapshots(),
+                  .snapshots(includeMetadataChanges: true),
               builder: (context, snap) {
                 if (snap.hasError) {
                   return Center(child: Text('Error: ${snap.error}'));
@@ -93,6 +184,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: Text('Pehla message bhejein 👋',
                           style: TextStyle(color: Colors.grey)));
                 }
+                WidgetsBinding.instance
+                    .addPostFrameCallback((_) => markRead(docs));
                 return ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.all(8),
@@ -115,8 +208,27 @@ class _ChatScreenState extends State<ChatScreen> {
                               : Colors.grey.shade200,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text('${m['text']}',
-                            style: const TextStyle(fontSize: 16)),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('${m['text']}',
+                                style: const TextStyle(fontSize: 16)),
+                            const SizedBox(height: 2),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(fmtTime(m['createdAt'] as Timestamp?),
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.black54)),
+                                if (mine) ...[
+                                  const SizedBox(width: 4),
+                                  tickIcon(docs[i]),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },

@@ -6,6 +6,22 @@ import 'chat_screen.dart';
 class ChatsTab extends StatelessWidget {
   const ChatsTab({super.key});
 
+  String timeText(Timestamp? t) {
+    if (t == null) return '';
+    final d = t.toDate();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(d.year, d.month, d.day);
+    final diff = today.difference(day).inDays;
+    if (diff == 0) {
+      final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+      final m = d.minute.toString().padLeft(2, '0');
+      return '$h:$m ${d.hour >= 12 ? 'PM' : 'AM'}';
+    }
+    if (diff == 1) return 'Yesterday';
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final me = FirebaseAuth.instance.currentUser!.uid;
@@ -49,20 +65,60 @@ class ChatsTab extends StatelessWidget {
             final other = members.firstWhere((m) => m != me, orElse: () => me);
             final name = '${(c['names'] as Map)[other] ?? ''}';
             final uname = '${(c['usernames'] as Map)[other] ?? ''}';
-            return ListTile(
-              leading: CircleAvatar(
-                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?')),
-              title: Text(other == me ? '$name (You)' : name,
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('${c['lastMessage'] ?? ''}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatScreen(
-                      otherUid: other, otherName: name, otherUsername: uname),
-                ),
-              ),
+            final time = timeText(c['lastTime'] as Timestamp?);
+            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: d.reference
+                  .collection('messages')
+                  .where('senderId', isEqualTo: other)
+                  .where('read', isEqualTo: false)
+                  .snapshots(),
+              builder: (context, us) {
+                final unread = other == me ? 0 : (us.data?.docs.length ?? 0);
+                return ListTile(
+                  leading: CircleAvatar(
+                      child: Text(
+                          name.isNotEmpty ? name[0].toUpperCase() : '?')),
+                  title: Text(other == me ? '$name (You)' : name,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('${c['lastMessage'] ?? ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontWeight:
+                              unread > 0 ? FontWeight.bold : FontWeight.normal)),
+                  trailing: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(time,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: unread > 0
+                                  ? const Color(0xFF1B8A3A)
+                                  : Colors.grey)),
+                      if (unread > 0) ...[
+                        const SizedBox(height: 4),
+                        CircleAvatar(
+                          radius: 11,
+                          backgroundColor: const Color(0xFF1B8A3A),
+                          child: Text('$unread',
+                              style: const TextStyle(
+                                  fontSize: 12, color: Colors.white)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatScreen(
+                          otherUid: other,
+                          otherName: name,
+                          otherUsername: uname),
+                    ),
+                  ),
+                );
+              },
             );
           }).toList(),
         );

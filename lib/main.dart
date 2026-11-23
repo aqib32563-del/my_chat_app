@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'username_screen.dart';
 import 'home_shell.dart';
+import 'presence_wrapper.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +61,7 @@ class ProfileGate extends StatelessWidget {
               body: Center(child: CircularProgressIndicator()));
         }
         if (!snap.data!.exists) return const UsernameScreen();
-        return HomeShell(data: snap.data!.data()!);
+        return PresenceWrapper(child: HomeShell(data: snap.data!.data()!));
       },
     );
   }
