@@ -16,16 +16,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'OurChat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0xFF075E54),
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      theme: ThemeData(primaryColor: const Color(0xFF075E54)),
       home: const AuthScreen(),
     );
   }
 }
 
-// ================= LOGIN / SIGNUP SCREEN =================
+// ================= LOGIN / SIGNUP =================
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
   @override
@@ -36,19 +33,16 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _usernameController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  
+
   bool _isLogin = true;
   bool _loading = false;
   String _errorMessage = '';
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
-    setState(() {
-      _loading = true;
-      _errorMessage = '';
-    });
+    setState(() { _loading = true; _errorMessage = ''; });
 
     try {
       if (_isLogin) {
@@ -62,10 +56,11 @@ class _AuthScreenState extends State<AuthScreen> {
           password: _passwordController.text.trim(),
         );
         
-        // Save user with their chosen username
+        // Save Username and Phone Number
         await FirebaseFirestore.instance.collection('users').doc(userCred.user!.uid).set({
           'email': _emailController.text.trim(),
           'username': '@${_usernameController.text.trim().toLowerCase()}',
+          'phone': _phoneController.text.trim(),
           'uid': userCred.user!.uid,
         });
       }
@@ -75,17 +70,13 @@ class _AuthScreenState extends State<AuthScreen> {
         if (e.code == 'user-not-found') {
           _errorMessage = 'Yeh email registered nahi hai. Pehle Naya Account banayein.';
         } else if (e.code == 'wrong-password') {
-          _errorMessage = 'Password galat hai. Dobara koshish karein.';
+          _errorMessage = 'Password galat hai.';
         } else if (e.code == 'email-already-in-use') {
-          _errorMessage = 'Yeh email pehle se registered hai. Login karein.';
-        } else if (e.code == 'weak-password') {
-          _errorMessage = 'Password kam az kam 6 characters ka hona chahiye.';
+          _errorMessage = 'Yeh email pehle se registered hai.';
         } else {
           _errorMessage = e.message ?? 'Koi masla hua hai.';
         }
       });
-    } catch (e) {
-      setState(() { _errorMessage = e.toString(); });
     } finally {
       setState(() { _loading = false; });
     }
@@ -94,70 +85,52 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_isLogin ? 'Login to OurChat' : 'Create New Account', style: const TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF075E54),
-      ),
+      appBar: AppBar(title: Text(_isLogin ? 'Login' : 'Sign Up'), backgroundColor: const Color(0xFF075E54)),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(20.0),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              const SizedBox(height: 30),
-              Icon(Icons.chat_bubble, size: 80, color: const Color(0xFF25D366)),
-              const SizedBox(height: 30),
-              
               if (!_isLogin) ...[
                 TextFormField(
                   controller: _usernameController,
-                  decoration: const InputDecoration(labelText: 'Username (e.g. aqib123)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
+                  decoration: const InputDecoration(labelText: 'Username (e.g. javeed7710)', border: OutlineInputBorder()),
                   validator: (val) => val!.isEmpty ? 'Username likhein' : null,
                 ),
                 const SizedBox(height: 15),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Phone Number (e.g. 03001234567)', border: OutlineInputBorder()),
+                  validator: (val) => val!.isEmpty ? 'Phone Number likhein' : null,
+                ),
+                const SizedBox(height: 15),
               ],
-
               TextFormField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email)),
+                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
                 validator: (val) => !val!.contains('@') ? 'Sahi Email likhein' : null,
               ),
               const SizedBox(height: 15),
-              
               TextFormField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)),
+                decoration: const InputDecoration(labelText: 'Password (min 6 chars)', border: OutlineInputBorder()),
                 validator: (val) => val!.length < 6 ? 'Password 6 characters ka hona chahiye' : null,
               ),
               const SizedBox(height: 20),
-              
               if (_errorMessage.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 15),
-                  child: Text(_errorMessage, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                ),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _loading ? null : _submit,
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF075E54)),
-                  child: _loading 
-                    ? const CircularProgressIndicator(color: Colors.white) 
-                    : Text(_isLogin ? 'LOGIN' : 'SIGN UP', style: const TextStyle(fontSize: 16, color: Colors.white)),
-                ),
+                Text(_errorMessage, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _loading ? null : _submit,
+                child: _loading ? const CircularProgressIndicator() : Text(_isLogin ? 'Login' : 'Sign Up'),
               ),
               TextButton(
-                onPressed: () {
-                  setState(() {
-                    _isLogin = !_isLogin;
-                    _errorMessage = '';
-                  });
-                },
-                child: Text(_isLogin ? 'Naya account banayein?' : 'Pehle se account hai? Login karein', style: const TextStyle(fontSize: 15)),
+                onPressed: () => setState(() { _isLogin = !_isLogin; _errorMessage = ''; }),
+                child: Text(_isLogin ? 'Naya account banayein?' : 'Pehle se account hai? Login karein'),
               )
             ],
           ),
@@ -167,14 +140,75 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
-// ================= USER LIST SCREEN =================
-class UserListScreen extends StatelessWidget {
+// ================= USER LIST (Contacts Only) =================
+class UserListScreen extends StatefulWidget {
   const UserListScreen({super.key});
+  @override
+  State<UserListScreen> createState() => _UserListScreenState();
+}
+
+class _UserListScreenState extends State<UserListScreen> {
+  final String myUid = FirebaseAuth.instance.currentUser!.uid;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
+  bool _isAdding = false;
+
+  void _showAddContactDialog() {
+    final phoneController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add New Contact'),
+          content: TextField(
+            controller: phoneController,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(labelText: 'Phone Number (e.g. 03001234567)'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String phone = phoneController.text.trim();
+                Navigator.pop(context); // Close dialog
+                if (phone.isEmpty) return;
+                
+                setState(() { _isAdding = true; });
+                try {
+                  // 1. Search in global users
+                  final query = await FirebaseFirestore.instance.collection('users').where('phone', isEqualTo: phone).get();
+                  
+                  if (query.docs.isNotEmpty) {
+                    final targetData = query.docs.first.data();
+                    if (targetData['uid'] == myUid) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Yeh aapka khud ka number hai!')));
+                      return;
+                    }
+                    // 2. Save to MY contacts
+                    await FirebaseFirestore.instance.collection('users').doc(myUid).collection('contacts').doc(targetData['uid']).set(targetData);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact added successfully!')));
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Is number par koi user nahi mila.')));
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                } finally {
+                  setState(() { _isAdding = false; });
+                }
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('OurChat Contacts', style: TextStyle(color: Colors.white)),
@@ -189,57 +223,87 @@ class UserListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
-          }
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF25D366),
+        onPressed: _showAddContactDialog,
+        child: const Icon(Icons.person_add, color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (val) {
+                setState(() { _searchQuery = val.toLowerCase(); });
+              },
+              decoration: const InputDecoration(
+                hintText: 'Search in my contacts...',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          if (_isAdding) const LinearProgressIndicator(),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance.collection('users').doc(myUid).collection('contacts').snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+                }
+                
+                final contacts = snapshot.data?.docs ?? [];
+                if (contacts.isEmpty) {
+                  return const Center(child: Text('Aapki list khali hai.\nNeeche + dabakar number add karein.', textAlign: TextAlign.center));
+                }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('Abhi koi user nahi hai.\nApne dost ko bolein Naya Account banayein.', textAlign: TextAlign.center));
-          }
+                final filteredContacts = contacts.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  String username = data['username'] ?? '';
+                  String phone = data['phone'] ?? '';
+                  return username.toLowerCase().contains(_searchQuery) || phone.contains(_searchQuery);
+                }).toList();
 
-          final users = snapshot.data!.docs.where((doc) => doc.id != currentUser?.uid).toList();
+                if (filteredContacts.isEmpty) {
+                  return const Center(child: Text('Koi contact nahi mila.'));
+                }
 
-          if (users.isEmpty) {
-             return const Center(child: Padding(
-               padding: EdgeInsets.all(20.0),
-               child: Text('Aap ke ilawa koi doosra user nahi hai.\nApne dost ke phone mein bhi yeh app install karein aur wahan se naya account banayein.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
-             ));
-          }
-
-          return ListView.builder(
-            itemCount: users.length,
-            itemBuilder: (context, index) {
-              final userData = users[index].data() as Map<String, dynamic>;
-              String displayUsername = userData['username'] ?? 'Unknown';
-
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF25D366),
-                  child: Text(displayUsername[1].toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-                title: Text(displayUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatScreen(
-                        receiverUsername: displayUsername,
-                        receiverId: userData['uid'],
+                return ListView.builder(
+                  itemCount: filteredContacts.length,
+                  itemBuilder: (context, index) {
+                    final userData = filteredContacts[index].data() as Map<String, dynamic>;
+                    String displayUsername = userData['username'] ?? 'Unknown';
+                    String displayPhone = userData['phone'] ?? '';
+                    
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFF25D366),
+                        child: Text(displayUsername.isNotEmpty ? displayUsername[1].toUpperCase() : '?', style: const TextStyle(color: Colors.white)),
                       ),
-                    ),
-                  );
-                },
-              );
-            },
-          );
-        },
+                      title: Text(displayUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      subtitle: Text(displayPhone),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              receiverUsername: displayUsername,
+                              receiverId: userData['uid'],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -319,7 +383,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           borderRadius: BorderRadius.circular(8),
                           boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
                         ),
-                        child: Text(msg['text'], style: const TextStyle(fontSize: 16)),
+                        child: Text(msg['text']),
                       ),
                     );
                   },
@@ -334,16 +398,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Type a message...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  radius: 25,
                   backgroundColor: const Color(0xFF075E54),
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
