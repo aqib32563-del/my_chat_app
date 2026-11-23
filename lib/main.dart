@@ -16,12 +16,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'OurChat',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(primaryColor: const Color(0xFF075E54)),
+      theme: ThemeData(
+        primaryColor: const Color(0xFF075E54),
+        scaffoldBackgroundColor: Colors.white,
+      ),
       home: const AuthScreen(),
     );
   }
 }
 
+// ================= LOGIN / SIGNUP SCREEN =================
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
   @override
@@ -29,44 +33,59 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  
   bool _isLogin = true;
   bool _loading = false;
+  String _errorMessage = '';
 
   Future<void> _submit() async {
-    setState(() { _loading = true; });
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _loading = true;
+      _errorMessage = '';
+    });
+
     try {
-      UserCredential userCredential;
       if (_isLogin) {
-        userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
       } else {
-        userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        UserCredential userCred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
         
-        String email = _emailController.text.trim();
-        String generatedUsername = '@${email.split('@')[0]}';
-
-        await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
-          'email': email,
-          'username': generatedUsername,
-          'uid': userCredential.user!.uid,
+        // Save user with their chosen username
+        await FirebaseFirestore.instance.collection('users').doc(userCred.user!.uid).set({
+          'email': _emailController.text.trim(),
+          'username': '@${_usernameController.text.trim().toLowerCase()}',
+          'uid': userCred.user!.uid,
         });
       }
       Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const UserListScreen()));
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message ?? 'Authentication Failed'), backgroundColor: Colors.red),
-      );
+      setState(() {
+        if (e.code == 'user-not-found') {
+          _errorMessage = 'Yeh email registered nahi hai. Pehle Naya Account banayein.';
+        } else if (e.code == 'wrong-password') {
+          _errorMessage = 'Password galat hai. Dobara koshish karein.';
+        } else if (e.code == 'email-already-in-use') {
+          _errorMessage = 'Yeh email pehle se registered hai. Login karein.';
+        } else if (e.code == 'weak-password') {
+          _errorMessage = 'Password kam az kam 6 characters ka hona chahiye.';
+        } else {
+          _errorMessage = e.message ?? 'Koi masla hua hai.';
+        }
+      });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-      );
+      setState(() { _errorMessage = e.toString(); });
     } finally {
       setState(() { _loading = false; });
     }
@@ -75,39 +94,80 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('OurChat Login'), backgroundColor: const Color(0xFF075E54)),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 15),
-            TextField(
-              controller: _passwordController,
-              obscureText: true,
-              decoration: const InputDecoration(labelText: 'Password (min 6 chars)', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _loading ? null : _submit,
-              child: _loading ? const CircularProgressIndicator() : Text(_isLogin ? 'Login' : 'Sign Up (Naya Account)'),
-            ),
-            TextButton(
-              onPressed: () => setState(() { _isLogin = !_isLogin; }),
-              child: Text(_isLogin ? 'Create a new account (Naya Account)' : 'Already have an account? Login'),
-            )
-          ],
+      appBar: AppBar(
+        title: Text(_isLogin ? 'Login to OurChat' : 'Create New Account', style: const TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF075E54),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              const SizedBox(height: 30),
+              Icon(Icons.chat_bubble, size: 80, color: const Color(0xFF25D366)),
+              const SizedBox(height: 30),
+              
+              if (!_isLogin) ...[
+                TextFormField(
+                  controller: _usernameController,
+                  decoration: const InputDecoration(labelText: 'Username (e.g. aqib123)', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person)),
+                  validator: (val) => val!.isEmpty ? 'Username likhein' : null,
+                ),
+                const SizedBox(height: 15),
+              ],
+
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder(), prefixIcon: Icon(Icons.email)),
+                validator: (val) => !val!.contains('@') ? 'Sahi Email likhein' : null,
+              ),
+              const SizedBox(height: 15),
+              
+              TextFormField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock)),
+                validator: (val) => val!.length < 6 ? 'Password 6 characters ka hona chahiye' : null,
+              ),
+              const SizedBox(height: 20),
+              
+              if (_errorMessage.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 15),
+                  child: Text(_errorMessage, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                ),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _loading ? null : _submit,
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF075E54)),
+                  child: _loading 
+                    ? const CircularProgressIndicator(color: Colors.white) 
+                    : Text(_isLogin ? 'LOGIN' : 'SIGN UP', style: const TextStyle(fontSize: 16, color: Colors.white)),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isLogin = !_isLogin;
+                    _errorMessage = '';
+                  });
+                },
+                child: Text(_isLogin ? 'Naya account banayein?' : 'Pehle se account hai? Login karein', style: const TextStyle(fontSize: 15)),
+              )
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
+// ================= USER LIST SCREEN =================
 class UserListScreen extends StatelessWidget {
   const UserListScreen({super.key});
 
@@ -117,7 +177,7 @@ class UserListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select User to Chat', style: TextStyle(color: Colors.white)),
+        title: const Text('OurChat Contacts', style: TextStyle(color: Colors.white)),
         backgroundColor: const Color(0xFF075E54),
         actions: [
           IconButton(
@@ -132,21 +192,39 @@ class UserListScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('users').snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
           
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+          }
+
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text('Abhi koi user nahi hai.\nApne dost ko bolein Naya Account banayein.', textAlign: TextAlign.center));
+          }
+
           final users = snapshot.data!.docs.where((doc) => doc.id != currentUser?.uid).toList();
-          
-          if (users.isEmpty) return const Center(child: Text('No other users found. Ask a friend to sign up!'));
+
+          if (users.isEmpty) {
+             return const Center(child: Padding(
+               padding: EdgeInsets.all(20.0),
+               child: Text('Aap ke ilawa koi doosra user nahi hai.\nApne dost ke phone mein bhi yeh app install karein aur wahan se naya account banayein.', textAlign: TextAlign.center, style: TextStyle(fontSize: 16)),
+             ));
+          }
 
           return ListView.builder(
             itemCount: users.length,
             itemBuilder: (context, index) {
               final userData = users[index].data() as Map<String, dynamic>;
-              String displayUsername = userData['username'] ?? '@${userData['email'].split('@')[0]}';
+              String displayUsername = userData['username'] ?? 'Unknown';
 
               return ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person)),
-                title: Text(displayUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                leading: CircleAvatar(
+                  backgroundColor: const Color(0xFF25D366),
+                  child: Text(displayUsername[1].toUpperCase(), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+                title: Text(displayUsername, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -167,6 +245,7 @@ class UserListScreen extends StatelessWidget {
   }
 }
 
+// ================= CHAT SCREEN =================
 class ChatScreen extends StatefulWidget {
   final String receiverUsername;
   final String receiverId;
@@ -238,8 +317,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         decoration: BoxDecoration(
                           color: isMe ? const Color(0xFFDCF8C6) : Colors.white,
                           borderRadius: BorderRadius.circular(8),
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 2)],
                         ),
-                        child: Text(msg['text']),
+                        child: Text(msg['text'], style: const TextStyle(fontSize: 16)),
                       ),
                     );
                   },
@@ -254,14 +334,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
+                  radius: 25,
                   backgroundColor: const Color(0xFF075E54),
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
